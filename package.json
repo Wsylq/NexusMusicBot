@@ -17,7 +17,7 @@
     "genius-lyrics-api": "^3.0.2",
     "opusscript": "^0.1.1",
     "soundcloud-downloader": "^1.0.0",
-    "spotify-web-api-node": "^5.0.2",
+    "spotify-url-info": "^3.3.0",
     "yt-dlp-exec": "^1.0.2",
     "youtube-sr": "^4.3.12"
   }

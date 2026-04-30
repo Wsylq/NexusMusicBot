@@ -6,12 +6,13 @@ const SPOTIFY_REGEX = /^https?:\/\/open\.spotify\.com\/(track|album|playlist)\/(
 const SOUNDCLOUD_REGEX = /^https?:\/\/(soundcloud\.com|snd\.sc)\/.+/;
 
 class Song {
-  constructor({ title, url, duration, thumbnail, requestedBy }) {
+  constructor({ title, url, duration, thumbnail, requestedBy, _isSoundCloud }) {
     this.title = title;
     this.url = url;
-    this.duration = duration;       // seconds
+    this.duration = duration; // seconds
     this.thumbnail = thumbnail;
     this.requestedBy = requestedBy;
+    this._isSoundCloud = _isSoundCloud || false;
   }
 
   get durationFormatted() {
@@ -28,15 +29,13 @@ class Song {
    * Resolve a query/url into a Song (or array of Songs for playlists)
    * @param {string} query
    * @param {import("discord.js").User} requestedBy
-   * @param {import("spotify-web-api-node")} spotifyApi
    * @param {import("soundcloud-downloader").default} scdl
    * @returns {Promise<Song | Song[]>}
    */
-  static async from(query, requestedBy, spotifyApi, scdl) {
+  static async from(query, requestedBy, scdl) {
     // --- Spotify ---
     if (SPOTIFY_REGEX.test(query)) {
-      const [, type, id] = query.match(SPOTIFY_REGEX);
-      return Song._fromSpotify(type, id, requestedBy, spotifyApi);
+      return Song._fromSpotify(query, requestedBy);
     }
 
     // --- SoundCloud ---
@@ -77,48 +76,38 @@ class Song {
     });
   }
 
-  static async _fromSpotify(type, id, requestedBy, spotifyApi) {
+  static async _fromSpotify(url, requestedBy) {
+    const { getData, getPreview } = require("spotify-url-info")(require("node-fetch"));
+    const [, type] = url.match(SPOTIFY_REGEX);
+
     if (type === "track") {
-      const data = await spotifyApi.getTrack(id);
-      const track = data.body;
-      const query = `${track.name} ${track.artists.map((a) => a.name).join(" ")}`;
+      const data = await getPreview(url);
+      const query = `${data.title} ${data.artist}`;
       const song = await Song._fromSearch(query, requestedBy);
-      song.title = `${track.name} — ${track.artists[0].name}`;
-      song.thumbnail = track.album.images[0]?.url || song.thumbnail;
+      song.title = `${data.title} — ${data.artist}`;
+      song.thumbnail = data.image || song.thumbnail;
       return song;
     }
 
-    if (type === "playlist") {
-      const data = await spotifyApi.getPlaylist(id);
-      const items = data.body.tracks.items.filter((i) => i.track);
-      return Promise.all(
-        items.map(async ({ track }) => {
-          const query = `${track.name} ${track.artists.map((a) => a.name).join(" ")}`;
-          const song = await Song._fromSearch(query, requestedBy).catch(() => null);
-          if (song) {
-            song.title = `${track.name} — ${track.artists[0].name}`;
-            song.thumbnail = track.album.images[0]?.url || song.thumbnail;
-          }
-          return song;
-        })
-      ).then((songs) => songs.filter(Boolean));
-    }
+    if (type === "playlist" || type === "album") {
+      const data = await getData(url);
+      const tracks = type === "playlist"
+        ? data.tracks.items.map((i) => i.track).filter(Boolean)
+        : data.tracks.items;
 
-    if (type === "album") {
-      const data = await spotifyApi.getAlbum(id);
-      const tracks = data.body.tracks.items;
-      const albumArt = data.body.images[0]?.url;
-      return Promise.all(
+      const songs = await Promise.all(
         tracks.map(async (track) => {
-          const query = `${track.name} ${track.artists.map((a) => a.name).join(" ")}`;
+          const artist = track.artists?.[0]?.name || "";
+          const query = `${track.name} ${artist}`;
           const song = await Song._fromSearch(query, requestedBy).catch(() => null);
           if (song) {
-            song.title = `${track.name} — ${track.artists[0].name}`;
-            song.thumbnail = albumArt || song.thumbnail;
+            song.title = artist ? `${track.name} — ${artist}` : track.name;
+            song.thumbnail = data.images?.[0]?.url || song.thumbnail;
           }
           return song;
         })
-      ).then((songs) => songs.filter(Boolean));
+      );
+      return songs.filter(Boolean);
     }
 
     throw new Error(`Unsupported Spotify type: ${type}`);
@@ -149,7 +138,6 @@ class Song {
       });
     }
 
-    // YouTube via yt-dlp piped to ffmpeg
     const ffmpegPath = require("ffmpeg-static");
     const { spawn } = require("child_process");
     const path = require("path");
@@ -163,25 +151,13 @@ class Song {
 
     const ytdlpProcess = spawn(
       ytdlpPath,
-      [
-        this.url,
-        "-f", "bestaudio/best",
-        "--no-playlist",
-        "-o", "-",
-        "--quiet",
-      ],
+      [this.url, "-f", "bestaudio/best", "--no-playlist", "-o", "-", "--quiet"],
       { stdio: ["ignore", "pipe", "ignore"] }
     );
 
     const ffmpegProcess = spawn(
       ffmpegPath,
-      [
-        "-i", "pipe:0",
-        "-f", "s16le",
-        "-ar", "48000",
-        "-ac", "2",
-        "pipe:1",
-      ],
+      ["-i", "pipe:0", "-f", "s16le", "-ar", "48000", "-ac", "2", "pipe:1"],
       { stdio: ["pipe", "pipe", "ignore"] }
     );
 

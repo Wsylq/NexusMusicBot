@@ -35,7 +35,7 @@ module.exports = {
 
     let result;
     try {
-      result = await Song.from(query, interaction.user, bot.spotify, bot.scdl);
+      result = await Song.from(query, interaction.user, bot.scdl);
     } catch (err) {
       console.error("[play]", err);
       return interaction.editReply({
