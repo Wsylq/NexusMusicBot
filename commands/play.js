@@ -40,11 +40,13 @@ module.exports = {
     // Get or create player
     let player = bot.manager.players.get(interaction.guild.id);
     if (!player) {
+      // Use persisted volume for this guild if available
+      const savedVolume = bot.guildVolumes?.get(interaction.guild.id) ?? config.defaultVolume;
       player = bot.manager.players.create({
         guildId: interaction.guild.id,
         voiceChannelId: voiceChannel.id,
         textChannelId: interaction.channel.id,
-        volume: config.defaultVolume,
+        volume: savedVolume,
         autoPlay: false,
         autoLeave: true,
       });

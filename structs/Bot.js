@@ -39,6 +39,9 @@ class Bot {
     /** @type {Array<{title: string, url: string, thumbnail: string}>} */
     this.recentSongs = [];
 
+    /** @type {Map<string, number>} guild volume persistence */
+    this.guildVolumes = new Map();
+
     this.scdl = scdl;
 
     // Moonlink (Lavalink v4 client)
