@@ -4,8 +4,49 @@ const config = require("../config");
 
 const genius = new GeniusClient(config.geniusAccessToken);
 
+// Fetch lyrics from Lavalink via REST
+async function fetchLavalinkLyrics(bot, guildId) {
+  try {
+    const player = bot.manager.players.get(guildId);
+    if (!player?.current) return null;
+
+    const node = player.node;
+    const sessionId = node.sessionId;
+    const baseUrl = `http${config.lavalink.secure ? "s" : ""}://${config.lavalink.host}:${config.lavalink.port}`;
+    const url = `${baseUrl}/v4/sessions/${sessionId}/players/${guildId}/track/lyrics`;
+
+    const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
+    const res = await fetch(url, {
+      headers: { Authorization: config.lavalink.password },
+    });
+
+    if (res.status === 204 || res.status === 404) return null;
+    if (!res.ok) return null;
+
+    return await res.json();
+  } catch (err) {
+    console.error("[lyrics] Lavalink fetch error:", err.message);
+    return null;
+  }
+}
+
+// Genius fallback
+async function fetchGeniusLyrics(queries) {
+  for (const query of queries) {
+    try {
+      const searches = await genius.songs.search(query);
+      if (!searches?.length) continue;
+      const song = searches[0];
+      const lyrics = await song.lyrics();
+      if (lyrics) return { lyrics, title: song.title, url: song.url, thumbnail: song.image };
+    } catch (err) {
+      console.error(`[lyrics] Genius "${query}":`, err.message);
+    }
+  }
+  return null;
+}
+
 function buildQueries(title, author) {
-  // Clean up YouTube junk
   const cleanT = title
     .replace(/\s+(official|topic|lyrics|video|audio|hd|hq|mv)\s*$/gi, "")
     .replace(/\((?:official|lyrics|video|audio)[^)]*\)/gi, "")
@@ -42,7 +83,6 @@ module.exports = {
     const manualQuery = interaction.options.getString("song");
 
     if (manualQuery) {
-      // Split "Artist - Title" if provided
       const parts = manualQuery.split(/\s*-\s*/);
       if (parts.length >= 2) {
         author = parts[0].trim();
@@ -62,56 +102,63 @@ module.exports = {
       author = track.author || "";
     }
 
-    const attempts = buildQueries(title, author);
-    const displayQuery = attempts[0] || title;
+    const queries = buildQueries(title, author);
+    const displayQuery = queries[0] || title;
 
     await interaction.editReply({
       embeds: [new EmbedBuilder().setColor(config.embedColor).setDescription(`🔍 Searching lyrics for **${displayQuery}**...`)],
     });
 
-    let lyrics = null;
-    let songTitle = displayQuery;
-    let songUrl = null;
-    let songArt = null;
-
-    for (const query of attempts) {
-      try {
-        const searches = await genius.songs.search(query);
-        if (!searches?.length) continue;
-        const song = searches[0];
-        lyrics = await song.lyrics();
-        if (lyrics) {
-          songTitle = song.title;
-          songUrl = song.url;
-          songArt = song.image;
-          break;
+    // Try Lavalink lyrics plugin first (only when playing, no manual query)
+    if (!manualQuery) {
+      const lavalinkLyrics = await fetchLavalinkLyrics(bot, interaction.guild.id);
+      if (lavalinkLyrics) {
+        let lyricsText;
+        if (lavalinkLyrics.lines?.length) {
+          lyricsText = lavalinkLyrics.lines.map((l) => l.line).filter(Boolean).join("\n");
+        } else if (lavalinkLyrics.text) {
+          lyricsText = lavalinkLyrics.text;
         }
-      } catch (err) {
-        console.error(`[lyrics] attempt "${query}" failed:`, err.message);
+
+        if (lyricsText) {
+          const cleanAuthor = author.replace(/\s*-\s*Topic\s*$/i, "").replace(/\s*Official\s*$/i, "").trim();
+          const chunks = lyricsText.match(/[\s\S]{1,4000}/g) || [];
+          const embed = new EmbedBuilder()
+            .setColor(config.embedColor)
+            .setTitle(`${title}${cleanAuthor ? ` — ${cleanAuthor}` : ""}`)
+            .setDescription(chunks[0])
+            .setFooter({ text: `Lyrics via ${lavalinkLyrics.provider || lavalinkLyrics.sourceName || "Lavalink"}` });
+
+          await interaction.editReply({ embeds: [embed] });
+          for (let i = 1; i < chunks.length; i++) {
+            await interaction.followUp({ embeds: [new EmbedBuilder().setColor(config.embedColor).setDescription(chunks[i])] });
+          }
+          return;
+        }
       }
     }
 
-    if (!lyrics) {
+    // Fallback to Genius
+    const result = await fetchGeniusLyrics(queries);
+    if (!result) {
       return interaction.editReply({
         embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ No lyrics found for **${displayQuery}**`)],
       });
     }
 
-    const chunks = lyrics.match(/[\s\S]{1,4000}/g) || [];
+    const chunks = result.lyrics.match(/[\s\S]{1,4000}/g) || [];
     const embed = new EmbedBuilder()
       .setColor(config.embedColor)
-      .setTitle(songTitle)
-      .setDescription(chunks[0]);
+      .setTitle(result.title)
+      .setDescription(chunks[0])
+      .setFooter({ text: "Lyrics via Genius" });
 
-    if (songUrl) embed.setURL(songUrl);
-    if (songArt) embed.setThumbnail(songArt);
+    if (result.url) embed.setURL(result.url);
+    if (result.thumbnail) embed.setThumbnail(result.thumbnail);
 
     await interaction.editReply({ embeds: [embed] });
-
     for (let i = 1; i < chunks.length; i++) {
-      await interaction.followUp({
-        embeds: [new EmbedBuilder().setColor(config.embedColor).setDescription(chunks[i])],
-      });
+      await interaction.followUp({ embeds: [new EmbedBuilder().setColor(config.embedColor).setDescription(chunks[i])] });
     }
   },
 };

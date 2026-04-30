@@ -117,6 +117,20 @@ class Bot {
       channel.send({ embeds: [embed] }).catch(() => {});
     });
 
+    this.manager.on("trackException", (player, track, exception) => {
+      const channelId = player.textChannelId || player.textChannel;
+      const channel = this.client.channels.cache.get(channelId);
+      console.error(`[Track Error] ${track?.title}: ${exception?.message?.split("\n")[0]}`);
+      if (channel) {
+        const { EmbedBuilder } = require("discord.js");
+        channel.send({
+          embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ Failed to play **${track?.title}** — skipping.`)],
+        }).catch(() => {});
+      }
+      // Skip to next track instead of destroying
+      try { player.skip(); } catch {}
+    });
+
     this.manager.on("queueEnd", (player) => {
       const channelId = player.textChannelId || player.textChannel;
       const channel = this.client.channels.cache.get(channelId);
