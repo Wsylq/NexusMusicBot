@@ -89,8 +89,8 @@ class Bot {
     });
 
     this.manager.on("trackStart", (player, track) => {
-      const channel = this.client.channels.cache.get(player.textChannel);
-      if (!channel) return;
+      const channelId = player.textChannelId || player.textChannel;
+      const channel = this.client.channels.cache.get(channelId);
 
       // Add to recent cache
       this.addToRecentSongs({
@@ -98,6 +98,9 @@ class Bot {
         url: track.uri,
         thumbnail: track.artworkUrl || track.thumbnail,
       });
+      console.log(`[Recent] Added: ${track.title} | Total: ${this.recentSongs.length}`);
+
+      if (!channel) return;
 
       const { EmbedBuilder } = require("discord.js");
       const embed = new EmbedBuilder()
@@ -114,9 +117,9 @@ class Bot {
       channel.send({ embeds: [embed] }).catch(() => {});
     });
 
-    this.manager.on("trackEnd", () => {});
     this.manager.on("queueEnd", (player) => {
-      const channel = this.client.channels.cache.get(player.textChannel);
+      const channelId = player.textChannelId || player.textChannel;
+      const channel = this.client.channels.cache.get(channelId);
       if (channel) {
         const { EmbedBuilder } = require("discord.js");
         channel.send({
