@@ -1,6 +1,45 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
-const { getSong } = require("genius-lyrics-api");
 const config = require("../config");
+
+async function fetchLyrics(query) {
+  const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
+
+  // Search Genius
+  const searchRes = await fetch(
+    `https://api.genius.com/search?q=${encodeURIComponent(query)}`,
+    { headers: { Authorization: `Bearer ${config.geniusAccessToken}` } }
+  );
+  const searchData = await searchRes.json();
+  const hit = searchData.response?.hits?.[0]?.result;
+  if (!hit) return null;
+
+  // Scrape lyrics page
+  const pageRes = await fetch(hit.url);
+  const html = await pageRes.text();
+
+  // Extract lyrics from data-lyrics-container divs
+  const matches = [...html.matchAll(/data-lyrics-container="true"[^>]*>([\s\S]*?)<\/div>/g)];
+  if (!matches.length) return null;
+
+  const lyrics = matches
+    .map(([, content]) =>
+      content
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<[^>]+>/g, "")
+        .replace(/&#x27;/g, "'")
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"')
+    )
+    .join("\n")
+    .trim();
+
+  return {
+    title: hit.full_title,
+    url: hit.url,
+    thumbnail: hit.song_art_image_thumbnail_url,
+    lyrics,
+  };
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -25,7 +64,7 @@ module.exports = {
       query = queue.currentSong.title;
     }
 
-    // Clean up title: remove things like "(Official Video)", "[Lyrics]", "ft. X", etc.
+    // Clean up title
     const cleaned = query
       .replace(/\(.*?\)/g, "")
       .replace(/\[.*?\]/g, "")
@@ -33,36 +72,24 @@ module.exports = {
       .replace(/feat\.?.+$/i, "")
       .trim();
 
-    // Split into title + artist on " — " or " - "
-    const [rawTitle, rawArtist = ""] = cleaned.split(/\s*[—\-]\s*/);
-
-    const options = {
-      apiKey: config.geniusAccessToken,
-      title: rawTitle.trim(),
-      artist: rawArtist.trim() || "",
-      optimizeQuery: true,
-      authHeader: true,
-    };
-
     try {
-      const song = await getSong(options);
+      const result = await fetchLyrics(cleaned);
 
-      if (!song || !song.lyrics) {
+      if (!result?.lyrics) {
         return interaction.editReply({
           embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ No lyrics found for **${cleaned}**`)],
         });
       }
 
-      // Split into 4000-char chunks to fit Discord embed limits
-      const chunks = song.lyrics.match(/[\s\S]{1,4000}/g) || [];
+      const chunks = result.lyrics.match(/[\s\S]{1,4000}/g) || [];
 
       const embed = new EmbedBuilder()
         .setColor(config.embedColor)
-        .setTitle(song.title)
-        .setURL(song.url)
+        .setTitle(result.title)
+        .setURL(result.url)
         .setDescription(chunks[0]);
 
-      if (song.albumArt) embed.setThumbnail(song.albumArt);
+      if (result.thumbnail) embed.setThumbnail(result.thumbnail);
 
       await interaction.editReply({ embeds: [embed] });
 
