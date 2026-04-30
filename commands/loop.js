@@ -15,7 +15,7 @@ module.exports = {
     ),
   async execute(interaction, bot) {
     const player = bot.manager.players.get(interaction.guild.id);
-    if (!player) return interaction.reply({ embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ Nothing is playing.")], ephemeral: true });
+    if (!player) return interaction.reply({ embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ Nothing is playing.")], flags: 64 });
     const mode = interaction.options.getString("mode");
     const map = { none: 0, track: 1, queue: 2 };
     player.setLoop(map[mode]);
@@ -23,3 +23,4 @@ module.exports = {
     return interaction.reply({ embeds: [new EmbedBuilder().setColor(config.embedColor).setDescription(labels[mode])] });
   },
 };
+

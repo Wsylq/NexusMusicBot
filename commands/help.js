@@ -41,6 +41,7 @@ module.exports = {
       )
       .setFooter({ text: "Supports: YouTube • Spotify • SoundCloud" });
 
-    return interaction.reply({ embeds: [embed], ephemeral: true });
+    return interaction.reply({ embeds: [embed], flags: 64 });
   },
 };
+

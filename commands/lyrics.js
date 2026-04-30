@@ -152,3 +152,4 @@ module.exports = {
       await interaction.followUp({ embeds: [new EmbedBuilder().setColor(config.embedColor).setDescription(chunks[i])] });
   },
 };
+

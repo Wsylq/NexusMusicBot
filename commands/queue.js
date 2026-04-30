@@ -9,7 +9,7 @@ module.exports = {
   async execute(interaction, bot) {
     const player = bot.manager.players.get(interaction.guild.id);
     if (!player || (!player.playing && player.queue.isEmpty)) {
-      return interaction.reply({ embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ The queue is empty.")], ephemeral: true });
+      return interaction.reply({ embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ The queue is empty.")], flags: 64 });
     }
 
     const current = player.current;
@@ -40,3 +40,4 @@ module.exports = {
     });
   },
 };
+

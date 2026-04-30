@@ -12,7 +12,7 @@ module.exports = {
     const player = bot.manager.players.get(interaction.guild.id);
     if (!player) return interaction.reply({
       embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ Nothing is playing.")],
-      ephemeral: true,
+      flags: 64,
     });
 
     // Only the requester of the current track can change volume
@@ -20,7 +20,7 @@ module.exports = {
     if (requester && requester !== interaction.user.id) {
       return interaction.reply({
         embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ Only <@${requester}> can change the volume right now.`)],
-        ephemeral: true,
+        flags: 64,
       });
     }
 
@@ -36,3 +36,4 @@ module.exports = {
     });
   },
 };
+

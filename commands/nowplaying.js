@@ -6,7 +6,7 @@ module.exports = {
   async execute(interaction, bot) {
     const player = bot.manager.players.get(interaction.guild.id);
     const track = player?.current;
-    if (!track) return interaction.reply({ embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ Nothing is playing.")], ephemeral: true });
+    if (!track) return interaction.reply({ embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ Nothing is playing.")], flags: 64 });
 
     // position comes from track.position (ms elapsed) or player.get("position")
     const pos = track.position ?? player.get?.("position") ?? 0;
@@ -41,3 +41,4 @@ function _progressBar(pos, dur) {
   const filled = Math.min(Math.round((pos / dur) * 20), 20);
   return "▬".repeat(filled) + "🔘" + "▬".repeat(20 - filled);
 }
+

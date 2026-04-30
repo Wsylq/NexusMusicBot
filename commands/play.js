@@ -47,7 +47,7 @@ module.exports = {
         voiceChannelId: voiceChannel.id,
         textChannelId: interaction.channel.id,
         volume: savedVolume,
-        autoPlay: false,
+        autoPlay: bot.guildAutoplay?.get(interaction.guild.id) || false,
         autoLeave: true,
       });
     }
@@ -109,3 +109,4 @@ function _fmt(ms) {
   const m = Math.floor(s / 60);
   return `${m}:${String(s % 60).padStart(2, "0")}`;
 }
+

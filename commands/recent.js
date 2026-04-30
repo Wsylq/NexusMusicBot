@@ -8,7 +8,7 @@ module.exports = {
     if (!bot.recentSongs.length) {
       return interaction.reply({
         embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ No songs have been played yet.")],
-        ephemeral: true,
+        flags: 64,
       });
     }
 
@@ -26,3 +26,4 @@ module.exports = {
     });
   },
 };
+
