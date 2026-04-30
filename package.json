@@ -12,6 +12,7 @@
     "discord-api-types": "^0.38.47",
     "discord.js": "^14.26.3",
     "dotenv": "^17.4.2",
+    "genius-lyrics": "^4.4.7",
     "genius-lyrics-api": "^3.0.2",
     "moonlink.js": "^5.2.0",
     "node-fetch": "^2.7.0",

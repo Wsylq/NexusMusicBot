@@ -1,3 +1,14 @@
 node_modules/
 .env
 reference/
+*.json.moo*
+*.wal.moo*
+moonlink_data/
+.moonlink/
+.moon/
+.moonlink/data/data.1498026635486560317.json
+.moonlink/data/data.1498026635486560317.wal
+test_lyrics.js
+.moonlink/data/data.1498026635486560317.json
+.moonlink/data/data.1498026635486560317.json
+.moonlink/data/data.1498026635486560317.json

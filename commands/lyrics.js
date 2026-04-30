@@ -1,44 +1,30 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const { Client: GeniusClient } = require("genius-lyrics");
 const config = require("../config");
 
-async function fetchLyrics(query) {
-  const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
+const genius = new GeniusClient(config.geniusAccessToken);
 
-  // Search Genius
-  const searchRes = await fetch(
-    `https://api.genius.com/search?q=${encodeURIComponent(query)}`,
-    { headers: { Authorization: `Bearer ${config.geniusAccessToken}` } }
-  );
-  const searchData = await searchRes.json();
-  const hit = searchData.response?.hits?.[0]?.result;
-  if (!hit) return null;
-
-  // Scrape lyrics page
-  const pageRes = await fetch(hit.url);
-  const html = await pageRes.text();
-
-  // Extract lyrics from data-lyrics-container divs
-  const matches = [...html.matchAll(/data-lyrics-container="true"[^>]*>([\s\S]*?)<\/div>/g)];
-  if (!matches.length) return null;
-
-  const lyrics = matches
-    .map(([, content]) =>
-      content
-        .replace(/<br\s*\/?>/gi, "\n")
-        .replace(/<[^>]+>/g, "")
-        .replace(/&#x27;/g, "'")
-        .replace(/&amp;/g, "&")
-        .replace(/&quot;/g, '"')
-    )
-    .join("\n")
+function buildQueries(title, author) {
+  // Clean up YouTube junk
+  const cleanT = title
+    .replace(/\s+(official|topic|lyrics|video|audio|hd|hq|mv)\s*$/gi, "")
+    .replace(/\((?:official|lyrics|video|audio)[^)]*\)/gi, "")
+    .replace(/\[(?:official|lyrics|video|audio)[^\]]*\]/gi, "")
+    .replace(/\s+\bft\.\s*.+$/i, "")
+    .replace(/\s+\bfeat\.\s*.+$/i, "")
     .trim();
 
-  return {
-    title: hit.full_title,
-    url: hit.url,
-    thumbnail: hit.song_art_image_thumbnail_url,
-    lyrics,
-  };
+  const cleanA = author
+    .replace(/\s*-\s*Topic\s*$/i, "")
+    .replace(/\s*Official\s*$/i, "")
+    .trim();
+
+  const queries = new Set();
+  if (cleanT && cleanA) queries.add(`${cleanT} ${cleanA}`);
+  if (cleanT && cleanA) queries.add(`${cleanA} ${cleanT}`);
+  if (cleanT) queries.add(cleanT);
+  if (title !== cleanT) queries.add(title);
+  return [...queries].filter(Boolean);
 }
 
 module.exports = {
@@ -52,56 +38,79 @@ module.exports = {
   async execute(interaction, bot) {
     await interaction.deferReply();
 
-    let query = interaction.options.getString("song");
+    let title = "", author = "";
+    const manualQuery = interaction.options.getString("song");
 
-    if (!query) {
-      const queue = bot.queues.get(interaction.guild.id);
-      if (!queue?.currentSong) {
+    if (manualQuery) {
+      // Split "Artist - Title" if provided
+      const parts = manualQuery.split(/\s*-\s*/);
+      if (parts.length >= 2) {
+        author = parts[0].trim();
+        title = parts.slice(1).join(" - ").trim();
+      } else {
+        title = manualQuery;
+      }
+    } else {
+      const player = bot.manager?.players?.get(interaction.guild.id);
+      const track = player?.current;
+      if (!track) {
         return interaction.editReply({
           embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ No song playing and no query provided.")],
         });
       }
-      query = queue.currentSong.title;
+      title = track.title || "";
+      author = track.author || "";
     }
 
-    // Clean up title
-    const cleaned = query
-      .replace(/\(.*?\)/g, "")
-      .replace(/\[.*?\]/g, "")
-      .replace(/ft\.?.+$/i, "")
-      .replace(/feat\.?.+$/i, "")
-      .trim();
+    const attempts = buildQueries(title, author);
+    const displayQuery = attempts[0] || title;
 
-    try {
-      const result = await fetchLyrics(cleaned);
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setColor(config.embedColor).setDescription(`🔍 Searching lyrics for **${displayQuery}**...`)],
+    });
 
-      if (!result?.lyrics) {
-        return interaction.editReply({
-          embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ No lyrics found for **${cleaned}**`)],
-        });
+    let lyrics = null;
+    let songTitle = displayQuery;
+    let songUrl = null;
+    let songArt = null;
+
+    for (const query of attempts) {
+      try {
+        const searches = await genius.songs.search(query);
+        if (!searches?.length) continue;
+        const song = searches[0];
+        lyrics = await song.lyrics();
+        if (lyrics) {
+          songTitle = song.title;
+          songUrl = song.url;
+          songArt = song.image;
+          break;
+        }
+      } catch (err) {
+        console.error(`[lyrics] attempt "${query}" failed:`, err.message);
       }
+    }
 
-      const chunks = result.lyrics.match(/[\s\S]{1,4000}/g) || [];
-
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle(result.title)
-        .setURL(result.url)
-        .setDescription(chunks[0]);
-
-      if (result.thumbnail) embed.setThumbnail(result.thumbnail);
-
-      await interaction.editReply({ embeds: [embed] });
-
-      for (let i = 1; i < chunks.length; i++) {
-        await interaction.followUp({
-          embeds: [new EmbedBuilder().setColor(config.embedColor).setDescription(chunks[i])],
-        });
-      }
-    } catch (err) {
-      console.error("[lyrics]", err?.message || err);
+    if (!lyrics) {
       return interaction.editReply({
-        embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ Failed to fetch lyrics.")],
+        embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ No lyrics found for **${displayQuery}**`)],
+      });
+    }
+
+    const chunks = lyrics.match(/[\s\S]{1,4000}/g) || [];
+    const embed = new EmbedBuilder()
+      .setColor(config.embedColor)
+      .setTitle(songTitle)
+      .setDescription(chunks[0]);
+
+    if (songUrl) embed.setURL(songUrl);
+    if (songArt) embed.setThumbnail(songArt);
+
+    await interaction.editReply({ embeds: [embed] });
+
+    for (let i = 1; i < chunks.length; i++) {
+      await interaction.followUp({
+        embeds: [new EmbedBuilder().setColor(config.embedColor).setDescription(chunks[i])],
       });
     }
   },
