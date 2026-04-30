@@ -42,6 +42,9 @@ class Bot {
     /** @type {Map<string, number>} guild volume persistence */
     this.guildVolumes = new Map();
 
+    /** @type {Map<string, string>} track dedup — prevent double trackStart */
+    this._lastTrackId = new Map();
+
     this.scdl = scdl;
 
     // Moonlink (Lavalink v4 client)
@@ -93,6 +96,14 @@ class Bot {
 
     this.manager.on("trackStart", (player, track) => {
       const channelId = player.textChannelId || player.textChannel;
+
+      // Deduplicate — moonlink sometimes fires trackStart twice for the same track
+      // Use timestamp-based dedup: ignore if same track fired within 3 seconds
+      const now = Date.now();
+      const dedupKey = `${player.guildId}:${track.identifier}`;
+      const lastFired = this._lastTrackId.get(dedupKey);
+      if (lastFired && now - lastFired < 3000) return;
+      this._lastTrackId.set(dedupKey, now);
       const channel = this.client.channels.cache.get(channelId);
 
       // Add to recent cache

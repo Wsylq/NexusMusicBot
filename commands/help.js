@@ -34,6 +34,7 @@ module.exports = {
           value: [
             "`/lyrics [song]` — Get lyrics (uses current song if empty)",
             "`/recent` — Last 10 played songs",
+            "`/autoplay` — Toggle autoplay recommendations",
             "`/help` — This message",
           ].join("\n"),
         }
