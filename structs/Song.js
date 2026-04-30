@@ -123,7 +123,14 @@ class Song {
 
     const ytdlp = spawn(
       ytdlpPath,
-      [this.url, "-f", "bestaudio/best", "--no-playlist", "-o", "-"],
+      [
+        this.url,
+        "-f", "bestaudio[ext=webm][abr<=128]/bestaudio[ext=m4a]/bestaudio/best",
+        "--no-playlist",
+        "--no-part",
+        "--extractor-args", "youtube:player_client=web",
+        "-o", "-",
+      ],
       { stdio: ["ignore", "pipe", "pipe"] }
     );
 
