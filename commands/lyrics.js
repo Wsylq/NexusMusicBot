@@ -63,7 +63,7 @@ module.exports = {
         });
       }
     } catch (err) {
-      console.error("[lyrics]", err.message);
+      console.error("[lyrics]", err?.message || err);
       return interaction.editReply({
         embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ Failed to fetch lyrics.")],
       });

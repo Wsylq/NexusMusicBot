@@ -1,9 +1,19 @@
 const youtube = require("youtube-sr").default;
 const { createAudioResource, StreamType } = require("@discordjs/voice");
+const { spawn } = require("child_process");
+const path = require("path");
 
 const YOUTUBE_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
 const SPOTIFY_REGEX = /^https?:\/\/open\.spotify\.com\/(track|album|playlist)\/([a-zA-Z0-9]+)/;
 const SOUNDCLOUD_REGEX = /^https?:\/\/(soundcloud\.com|snd\.sc)\/.+/;
+
+const ffmpegPath = require("ffmpeg-static");
+const ytdlpPath = path.join(
+  path.dirname(require.resolve("yt-dlp-exec")),
+  "..",
+  "bin",
+  process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp"
+);
 
 class Song {
   constructor({ title, url, duration, thumbnail, requestedBy, _isSoundCloud }) {
@@ -25,30 +35,10 @@ class Song {
       : `${m}:${String(s).padStart(2, "0")}`;
   }
 
-  /**
-   * Resolve a query/url into a Song (or array of Songs for playlists)
-   * @param {string} query
-   * @param {import("discord.js").User} requestedBy
-   * @param {import("soundcloud-downloader").default} scdl
-   * @returns {Promise<Song | Song[]>}
-   */
   static async from(query, requestedBy, scdl) {
-    // --- Spotify ---
-    if (SPOTIFY_REGEX.test(query)) {
-      return Song._fromSpotify(query, requestedBy);
-    }
-
-    // --- SoundCloud ---
-    if (SOUNDCLOUD_REGEX.test(query)) {
-      return Song._fromSoundCloud(query, requestedBy, scdl);
-    }
-
-    // --- YouTube URL ---
-    if (YOUTUBE_REGEX.test(query)) {
-      return Song._fromYouTubeUrl(query, requestedBy);
-    }
-
-    // --- Text search → YouTube ---
+    if (SPOTIFY_REGEX.test(query)) return Song._fromSpotify(query, requestedBy);
+    if (SOUNDCLOUD_REGEX.test(query)) return Song._fromSoundCloud(query, requestedBy, scdl);
+    if (YOUTUBE_REGEX.test(query)) return Song._fromYouTubeUrl(query, requestedBy);
     return Song._fromSearch(query, requestedBy);
   }
 
@@ -125,45 +115,35 @@ class Song {
     });
   }
 
-  /**
-   * Create a playable AudioResource from this song
-   * @param {import("soundcloud-downloader").default} scdl
-   */
   async makeResource(scdl) {
     if (this._isSoundCloud) {
       const stream = await scdl.download(this.url);
-      return createAudioResource(stream, {
-        metadata: this,
-        inlineVolume: true,
-      });
+      return createAudioResource(stream, { metadata: this, inlineVolume: true });
     }
 
-    const ffmpegPath = require("ffmpeg-static");
-    const { spawn } = require("child_process");
-    const path = require("path");
-
-    const ytdlpPath = path.join(
-      path.dirname(require.resolve("yt-dlp-exec")),
-      "..",
-      "bin",
-      process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp"
-    );
-
-    const ytdlpProcess = spawn(
+    const ytdlp = spawn(
       ytdlpPath,
-      [this.url, "-f", "bestaudio/best", "--no-playlist", "-o", "-", "--quiet"],
-      { stdio: ["ignore", "pipe", "ignore"] }
+      [this.url, "-f", "bestaudio/best", "--no-playlist", "-o", "-"],
+      { stdio: ["ignore", "pipe", "pipe"] }
     );
 
-    const ffmpegProcess = spawn(
+    const ffmpeg = spawn(
       ffmpegPath,
       ["-i", "pipe:0", "-f", "s16le", "-ar", "48000", "-ac", "2", "pipe:1"],
-      { stdio: ["pipe", "pipe", "ignore"] }
+      { stdio: ["pipe", "pipe", "pipe"] }
     );
 
-    ytdlpProcess.stdout.pipe(ffmpegProcess.stdin);
+    ytdlp.stderr.on("data", (d) => console.error("[yt-dlp]", d.toString().trim()));
+    ffmpeg.stderr.on("data", (d) => {
+      const msg = d.toString();
+      if (!msg.includes("size=") && !msg.includes("time=")) console.error("[ffmpeg]", msg.trim());
+    });
+    ytdlp.on("error", (e) => console.error("[yt-dlp error]", e.message));
+    ffmpeg.on("error", (e) => console.error("[ffmpeg error]", e.message));
 
-    return createAudioResource(ffmpegProcess.stdout, {
+    ytdlp.stdout.pipe(ffmpeg.stdin);
+
+    return createAudioResource(ffmpeg.stdout, {
       inputType: StreamType.Raw,
       metadata: this,
       inlineVolume: true,
