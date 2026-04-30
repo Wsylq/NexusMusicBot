@@ -121,47 +121,56 @@ class Song {
       return createAudioResource(stream, { metadata: this, inlineVolume: true });
     }
 
-    const ytdlp = spawn(
-      ytdlpPath,
-      [
-        this.url,
-        "-f", "bestaudio/best",
-        "--no-playlist",
-        "--no-part",
-        "--extractor-args", "youtube:player_client=android_vr",
-        "-N", "4",
-        "-o", "-",
-      ],
-      { stdio: ["ignore", "pipe", "pipe"] }
-    );
+    const { spawn, execFile } = require("child_process");
+    const path = require("path");
+    const http = require("http");
+    const https = require("https");
 
+    // Step 1: get the direct stream URL quickly (no download)
+    const streamUrl = await new Promise((resolve, reject) => {
+      const proc = spawn(
+        ytdlpPath,
+        [
+          this.url,
+          "-f", "bestaudio/best",
+          "--no-playlist",
+          "--extractor-args", "youtube:player_client=android_vr",
+          "-g", // just print the URL, don't download
+        ],
+        { stdio: ["ignore", "pipe", "pipe"] }
+      );
+
+      let out = "";
+      proc.stdout.on("data", (d) => (out += d.toString()));
+      proc.stderr.on("data", () => {}); // suppress
+      proc.on("close", (code) => {
+        const url = out.trim().split("\n")[0];
+        if (url) resolve(url);
+        else reject(new Error("yt-dlp could not get stream URL"));
+      });
+      proc.on("error", reject);
+    });
+
+    // Step 2: pipe the direct URL through ffmpeg (starts immediately)
     const ffmpeg = spawn(
       ffmpegPath,
       [
         "-fflags", "nobuffer",
         "-flags", "low_delay",
-        "-i", "pipe:0",
+        "-i", streamUrl,
         "-f", "s16le",
         "-ar", "48000",
         "-ac", "2",
         "pipe:1",
       ],
-      { stdio: ["pipe", "pipe", "pipe"] }
+      { stdio: ["ignore", "pipe", "pipe"] }
     );
 
-    ytdlp.stderr.on("data", (d) => console.error("[yt-dlp]", d.toString().trim()));
     ffmpeg.stderr.on("data", (d) => {
       const msg = d.toString();
       if (!msg.includes("size=") && !msg.includes("time=")) console.error("[ffmpeg]", msg.trim());
     });
-    ytdlp.on("error", (e) => console.error("[yt-dlp error]", e.message));
     ffmpeg.on("error", (e) => console.error("[ffmpeg error]", e.message));
-
-    // Handle pipe errors gracefully (EPIPE when stream ends early)
-    ytdlp.stdout.on("error", () => {});
-    ffmpeg.stdin.on("error", () => {});
-
-    ytdlp.stdout.pipe(ffmpeg.stdin);
 
     return createAudioResource(ffmpeg.stdout, {
       inputType: StreamType.Raw,
