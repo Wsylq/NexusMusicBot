@@ -1,7 +1,5 @@
-const ytdl = require("yt-dlp-exec");
 const youtube = require("youtube-sr").default;
 const { createAudioResource, StreamType } = require("@discordjs/voice");
-const { Readable } = require("stream");
 
 const YOUTUBE_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
 const SPOTIFY_REGEX = /^https?:\/\/open\.spotify\.com\/(track|album|playlist)\/([a-zA-Z0-9]+)/;
@@ -154,12 +152,20 @@ class Song {
     // YouTube via yt-dlp piped to ffmpeg
     const ffmpegPath = require("ffmpeg-static");
     const { spawn } = require("child_process");
+    const path = require("path");
+
+    const ytdlpPath = path.join(
+      path.dirname(require.resolve("yt-dlp-exec")),
+      "..",
+      "bin",
+      process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp"
+    );
 
     const ytdlpProcess = spawn(
-      require("yt-dlp-exec").raw,
+      ytdlpPath,
       [
         this.url,
-        "-f", "bestaudio[ext=webm]/bestaudio/best",
+        "-f", "bestaudio/best",
         "--no-playlist",
         "-o", "-",
         "--quiet",
@@ -171,7 +177,7 @@ class Song {
       ffmpegPath,
       [
         "-i", "pipe:0",
-        "-f", "opus",
+        "-f", "s16le",
         "-ar", "48000",
         "-ac", "2",
         "pipe:1",
@@ -182,7 +188,7 @@ class Song {
     ytdlpProcess.stdout.pipe(ffmpegProcess.stdin);
 
     return createAudioResource(ffmpegProcess.stdout, {
-      inputType: StreamType.OggOpus,
+      inputType: StreamType.Raw,
       metadata: this,
       inlineVolume: true,
     });

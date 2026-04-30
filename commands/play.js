@@ -37,9 +37,9 @@ module.exports = {
     try {
       result = await Song.from(query, interaction.user, bot.spotify, bot.scdl);
     } catch (err) {
-      console.error("[play]", err.message);
+      console.error("[play]", err);
       return interaction.editReply({
-        embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ ${err.message}`)],
+        embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ ${err.message || "Failed to load song."}`)],
       });
     }
 
