@@ -55,8 +55,8 @@ class Song {
   }
 
   static async _fromSearch(query, requestedBy) {
-    const result = await youtube.searchOne(query);
-    if (!result) throw new Error(`No results found for: ${query}`);
+    const result = await youtube.searchOne(query).catch(() => null);
+    if (!result) throw new Error(`No results found for **${query}**`);
     return new Song({
       title: result.title,
       url: `https://www.youtube.com/watch?v=${result.id}`,
