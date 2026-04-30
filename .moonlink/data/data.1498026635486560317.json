@@ -1,0 +1,38 @@
+{
+  "data": {
+    "nodes": {
+      "b90272ba3136627cbd1fc55bba8d7e5fe4d1b47eb6c3e569002fdf9ff5dcde00": {
+        "sessionId": "vxntwrq4tep0qlti"
+      }
+    },
+    "players": {
+      "1464546564826599680": {
+        "guildId": "1464546564826599680",
+        "voiceChannelId": "1464546565761798312",
+        "textChannelId": "1498027825783898212",
+        "volume": 50,
+        "autoPlay": false,
+        "autoLeave": true,
+        "queue": [
+          {
+            "encoded": "QAAA8QMAUUJvb20sIEJvb20sIFRlbCBBdml2ICgyMDI1KSBJbnRlcm5ldCdzIEFudGktWmlvbmlzdCBTb25nIFt3L0x5cmljcywgRlVMTCBWRVJTSU9OXQASTWF0dGlhIHZvbiBTaWdtdW5kAAAAAAACm/gAC3Faa0F6ZU52SGJ3AAEAK2h0dHBzOi8vd3d3LnlvdXR1YmUuY29tL3dhdGNoP3Y9cVprQXplTnZIYncBADBodHRwczovL2kueXRpbWcuY29tL3ZpL3Faa0F6ZU52SGJ3L21xZGVmYXVsdC5qcGcAAAd5b3V0dWJlAAAAAAAAAAA=",
+            "requester": "1454552674820161790"
+          }
+        ],
+        "current": {
+          "encoded": "QAAAygMAK01yLktpdHR5IC0gQ2Fu4oCZdCBTdGFuZCBVIChPZmZpY2lhbCBWaWRlbykAEU1yLktpdHR5IE9mZmljaWFsAAAAAAADlfgAC0NnMndKajZua0tJAAEAK2h0dHBzOi8vd3d3LnlvdXR1YmUuY29tL3dhdGNoP3Y9Q2cyd0pqNm5rS0kBADBodHRwczovL2kueXRpbWcuY29tL3ZpL0NnMndKajZua0tJL21xZGVmYXVsdC5qcGcAAAd5b3V0dWJlAAAAAAAAAAA=",
+          "requester": "1454552674820161790",
+          "position": 64840
+        },
+        "playing": true,
+        "paused": false,
+        "previous": [
+          {
+            "encoded": "QAAArQMAEkJvb20gQm9vbSBUZWwgQXZpdgANQ2loYWQgQ2hhbm5lbAAAAAAAAZZAAAttSkxqTV9QOU5DbwABACtodHRwczovL3d3dy55b3V0dWJlLmNvbS93YXRjaD92PW1KTGpNX1A5TkNvAQAwaHR0cHM6Ly9pLnl0aW1nLmNvbS92aS9tSkxqTV9QOU5Dby9tcWRlZmF1bHQuanBnAAAHeW91dHViZQAAAAAAAAAA",
+            "requester": "1454552674820161790"
+          }
+        ]
+      }
+    }
+  }
+}

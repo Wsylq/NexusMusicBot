@@ -1,6 +1,4 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
-const { joinVoiceChannel } = require("@discordjs/voice");
-const MusicQueue = require("../structs/MusicQueue");
 const Song = require("../structs/Song");
 const config = require("../config");
 
@@ -24,75 +22,88 @@ module.exports = {
       });
     }
 
-    const perms = voiceChannel.permissionsFor(interaction.client.user);
-    if (!perms.has("Connect") || !perms.has("Speak")) {
-      return interaction.editReply({
-        embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ I don't have permission to join your voice channel.")],
-      });
-    }
-
     const query = interaction.options.getString("query");
 
-    let result;
+    // Resolve Spotify/SoundCloud to search queries
+    let resolved;
     try {
-      result = await Song.from(query, interaction.user, bot.scdl);
+      resolved = await Song.resolve(query, interaction.user, bot.scdl);
     } catch (err) {
-      console.error("[play]", err);
       return interaction.editReply({
-        embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ ${err.message || "Failed to load song."}`)],
+        embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ ${err.message}`)],
       });
     }
 
-    const songs = Array.isArray(result) ? result : [result];
+    const isPlaylist = Array.isArray(resolved);
+    const queries = isPlaylist ? resolved : [resolved];
 
-    // Get or create queue
-    let queue = bot.queues.get(interaction.guild.id);
-
-    if (!queue) {
-      const connection = joinVoiceChannel({
-        channelId: voiceChannel.id,
-        guildId: voiceChannel.guild.id,
-        adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-        selfDeafen: true,
-      });
-
-      queue = new MusicQueue({
-        textChannel: interaction.channel,
-        connection,
-        scdl: bot.scdl,
-      });
-
-      queue.onSongPlay = (song) => bot.addToRecentSongs(song);
-      bot.queues.set(interaction.guild.id, queue);
-    }
-
-    const wasEmpty = queue.size === 0;
-    queue.enqueueMany(songs);
-
-    if (songs.length === 1) {
-      const song = songs[0];
-      const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setAuthor({ name: wasEmpty ? "▶️ Now Playing" : "➕ Added to Queue" })
-        .setTitle(song.title)
-        .setURL(song.url)
-        .addFields(
-          { name: "Duration", value: song.durationFormatted, inline: true },
-          { name: "Requested by", value: `<@${interaction.user.id}>`, inline: true }
-        );
-      if (song.thumbnail) embed.setThumbnail(song.thumbnail);
-      if (!wasEmpty) embed.addFields({ name: "Position", value: `${queue.size}`, inline: true });
-      await interaction.editReply({ embeds: [embed] });
-    } else {
-      await interaction.editReply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(config.embedColor)
-            .setDescription(`✅ Added **${songs.length}** songs to the queue.`),
-        ],
+    // Get or create player
+    let player = bot.manager.players.get(interaction.guild.id);
+    if (!player) {
+      player = bot.manager.players.create({
+        guildId: interaction.guild.id,
+        voiceChannelId: voiceChannel.id,
+        textChannelId: interaction.channel.id,
+        volume: config.defaultVolume,
+        autoPlay: false,
+        autoLeave: true,
       });
     }
 
-    if (wasEmpty) queue.play();
+    if (!player.connected) await player.connect();
+
+    // Search and queue all tracks
+    let addedCount = 0;
+    let firstTrack = null;
+
+    for (const item of queries) {
+      const res = await bot.manager.search({
+        query: item.searchQuery,
+        source: "youtube",
+        requester: interaction.user.id,
+      }).catch(() => null);
+
+      if (!res?.tracks?.length) continue;
+
+      const track = res.tracks[0];
+      player.queue.add(track);
+      addedCount++;
+      if (!firstTrack) firstTrack = track;
+    }
+
+    if (!firstTrack) {
+      return interaction.editReply({
+        embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ No results found for **${query}**`)],
+      });
+    }
+
+    if (!player.playing) player.play();
+
+    if (isPlaylist) {
+      return interaction.editReply({
+        embeds: [new EmbedBuilder().setColor(config.embedColor).setDescription(`✅ Added **${addedCount}** songs to the queue.`)],
+      });
+    }
+
+    const wasFirst = player.queue.size <= 1 && addedCount === 1;
+    const embed = new EmbedBuilder()
+      .setColor(config.embedColor)
+      .setAuthor({ name: wasFirst ? "▶️ Now Playing" : "➕ Added to Queue" })
+      .setTitle(firstTrack.title)
+      .setURL(firstTrack.uri)
+      .addFields(
+        { name: "Duration", value: firstTrack.isStream ? "LIVE" : _fmt(firstTrack.duration), inline: true },
+        { name: "Requested by", value: `<@${interaction.user.id}>`, inline: true }
+      );
+    if (firstTrack.artworkUrl) embed.setThumbnail(firstTrack.artworkUrl);
+    if (!wasFirst) embed.addFields({ name: "Position", value: `${player.queue.size}`, inline: true });
+
+    return interaction.editReply({ embeds: [embed] });
   },
 };
+
+function _fmt(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, "0")}`;
+}

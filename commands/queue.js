@@ -6,28 +6,37 @@ module.exports = {
     .setName("queue")
     .setDescription("Show the current queue")
     .addIntegerOption((o) => o.setName("page").setDescription("Page number").setMinValue(1)),
-
   async execute(interaction, bot) {
-    const queue = bot.queues.get(interaction.guild.id);
-    if (!queue || queue.size === 0) {
+    const player = bot.manager.players.get(interaction.guild.id);
+    if (!player || (!player.playing && player.queue.isEmpty)) {
       return interaction.reply({ embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ The queue is empty.")], ephemeral: true });
     }
 
+    const current = player.current;
+    const upcoming = player.queue.all || [];
+    const all = current ? [current, ...upcoming] : [...upcoming];
+
     const perPage = 10;
     const page = (interaction.options.getInteger("page") || 1) - 1;
-    const totalPages = Math.ceil(queue.songs.length / perPage);
+    const totalPages = Math.ceil(all.length / perPage);
 
-    const songs = queue.songs
+    const songs = all
       .slice(page * perPage, page * perPage + perPage)
-      .map((s, i) => `**${page * perPage + i + 1}.** [${s.title}](${s.url}) \`${s.durationFormatted}\``)
+      .map((t, i) => {
+        const pos = page * perPage + i;
+        const prefix = pos === 0 ? "▶️" : `**${pos}.**`;
+        return `${prefix} [${t.title}](${t.uri})`;
+      })
       .join("\n");
 
-    const embed = new EmbedBuilder()
-      .setColor(config.embedColor)
-      .setTitle(`Queue — ${queue.songs.length} song${queue.songs.length !== 1 ? "s" : ""}`)
-      .setDescription(songs)
-      .setFooter({ text: `Page ${page + 1}/${totalPages} • Loop: ${queue.loop}` });
-
-    return interaction.reply({ embeds: [embed] });
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(config.embedColor)
+          .setTitle(`Queue — ${all.length} song${all.length !== 1 ? "s" : ""}`)
+          .setDescription(songs)
+          .setFooter({ text: `Page ${page + 1}/${totalPages}` }),
+      ],
+    });
   },
 };

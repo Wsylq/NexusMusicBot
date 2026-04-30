@@ -3,18 +3,11 @@ const config = require("../config");
 
 module.exports = {
   data: new SlashCommandBuilder().setName("skip").setDescription("Skip the current song"),
-
   async execute(interaction, bot) {
-    const queue = bot.queues.get(interaction.guild.id);
-    if (!queue?.playing) {
-      return interaction.reply({ embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ Nothing is playing.")], ephemeral: true });
-    }
-
-    const skipped = queue.currentSong.title;
-    queue.skip();
-
-    return interaction.reply({
-      embeds: [new EmbedBuilder().setColor(config.embedColor).setDescription(`⏭️ Skipped **${skipped}**`)],
-    });
+    const player = bot.manager.players.get(interaction.guild.id);
+    if (!player?.playing) return interaction.reply({ embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ Nothing is playing.")], ephemeral: true });
+    const title = player.current?.title;
+    player.skip();
+    return interaction.reply({ embeds: [new EmbedBuilder().setColor(config.embedColor).setDescription(`⏭️ Skipped **${title}**`)] });
   },
 };

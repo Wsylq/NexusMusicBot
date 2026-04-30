@@ -7,5 +7,11 @@ module.exports = {
   embedColor: "#1DB954",
   defaultVolume: 100,
   maxQueueSize: 100,
-  disconnectTimeout: 30000, // ms before leaving empty VC
+  disconnectTimeout: 30000,
+  lavalink: {
+    host: process.env.LAVALINK_HOST || "localhost",
+    port: parseInt(process.env.LAVALINK_PORT) || 2333,
+    password: process.env.LAVALINK_PASSWORD || "youshallnotpass",
+    secure: process.env.LAVALINK_SECURE === "true",
+  },
 };
