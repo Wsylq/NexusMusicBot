@@ -4,3 +4,4 @@ reference/
 .moonlink/
 moonlink_data/
 *.zip
+.moonlink/data/data.1498026635486560317.wal
