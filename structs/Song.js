@@ -125,10 +125,11 @@ class Song {
       ytdlpPath,
       [
         this.url,
-        "-f", "bestaudio[ext=webm][abr<=128]/bestaudio[ext=m4a]/bestaudio/best",
+        "-f", "bestaudio/best",
         "--no-playlist",
         "--no-part",
-        "--extractor-args", "youtube:player_client=web",
+        "--extractor-args", "youtube:player_client=android_vr",
+        "-N", "4",
         "-o", "-",
       ],
       { stdio: ["ignore", "pipe", "pipe"] }
@@ -136,7 +137,15 @@ class Song {
 
     const ffmpeg = spawn(
       ffmpegPath,
-      ["-i", "pipe:0", "-f", "s16le", "-ar", "48000", "-ac", "2", "pipe:1"],
+      [
+        "-fflags", "nobuffer",
+        "-flags", "low_delay",
+        "-i", "pipe:0",
+        "-f", "s16le",
+        "-ar", "48000",
+        "-ac", "2",
+        "pipe:1",
+      ],
       { stdio: ["pipe", "pipe", "pipe"] }
     );
 
