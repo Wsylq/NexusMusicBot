@@ -141,6 +141,10 @@ class Song {
     ytdlp.on("error", (e) => console.error("[yt-dlp error]", e.message));
     ffmpeg.on("error", (e) => console.error("[ffmpeg error]", e.message));
 
+    // Handle pipe errors gracefully (EPIPE when stream ends early)
+    ytdlp.stdout.on("error", () => {});
+    ffmpeg.stdin.on("error", () => {});
+
     ytdlp.stdout.pipe(ffmpeg.stdin);
 
     return createAudioResource(ffmpeg.stdout, {

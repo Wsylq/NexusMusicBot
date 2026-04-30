@@ -77,6 +77,9 @@ class MusicQueue {
       if (resource.volume) resource.volume.setVolume(this.volume);
       this.player.play(resource);
       this._currentResource = resource;
+
+      // Add to recent cache (max 10)
+      if (this.onSongPlay) this.onSongPlay(this.currentSong);
     } catch (err) {
       console.error(`[MusicQueue] Failed to play: ${err.message}`);
       this.textChannel.send({

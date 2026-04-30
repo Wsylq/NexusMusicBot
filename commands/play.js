@@ -62,6 +62,7 @@ module.exports = {
         scdl: bot.scdl,
       });
 
+      queue.onSongPlay = (song) => bot.addToRecentSongs(song);
       bot.queues.set(interaction.guild.id, queue);
     }
 

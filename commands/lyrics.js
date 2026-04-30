@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
-const { getSong, searchSong } = require("genius-lyrics-api");
+const { getSong } = require("genius-lyrics-api");
 const config = require("../config");
 
 module.exports = {
@@ -25,14 +25,23 @@ module.exports = {
       query = queue.currentSong.title;
     }
 
-    // Split query into title + artist if possible (e.g. "Title — Artist")
-    const [rawTitle, rawArtist = ""] = query.split(/\s*[—\-]\s*/);
+    // Clean up title: remove things like "(Official Video)", "[Lyrics]", "ft. X", etc.
+    const cleaned = query
+      .replace(/\(.*?\)/g, "")
+      .replace(/\[.*?\]/g, "")
+      .replace(/ft\.?.+$/i, "")
+      .replace(/feat\.?.+$/i, "")
+      .trim();
+
+    // Split into title + artist on " — " or " - "
+    const [rawTitle, rawArtist = ""] = cleaned.split(/\s*[—\-]\s*/);
 
     const options = {
       apiKey: config.geniusAccessToken,
       title: rawTitle.trim(),
-      artist: rawArtist.trim(),
+      artist: rawArtist.trim() || "",
       optimizeQuery: true,
+      authHeader: true,
     };
 
     try {
@@ -40,7 +49,7 @@ module.exports = {
 
       if (!song || !song.lyrics) {
         return interaction.editReply({
-          embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ No lyrics found for **${query}**`)],
+          embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ No lyrics found for **${cleaned}**`)],
         });
       }
 

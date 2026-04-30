@@ -20,6 +20,9 @@ class Bot {
     /** @type {Map<string, import("./MusicQueue")>} */
     this.queues = new Map();
 
+    /** @type {Array<{title: string, url: string, thumbnail: string, playCount: number}>} */
+    this.recentSongs = []; // last 10 played, most recent first
+
     // SoundCloud client
     this.scdl = scdl;
 
@@ -50,6 +53,15 @@ class Bot {
 
   start() {
     this.client.login(config.token);
+  }
+
+  addToRecentSongs(song) {
+    // Remove duplicate if already in list
+    this.recentSongs = this.recentSongs.filter((s) => s.url !== song.url);
+    // Add to front
+    this.recentSongs.unshift({ title: song.title, url: song.url, thumbnail: song.thumbnail });
+    // Keep max 10
+    if (this.recentSongs.length > 10) this.recentSongs.pop();
   }
 }
 
